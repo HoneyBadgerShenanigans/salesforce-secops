@@ -27,9 +27,9 @@ secops:
   # Ingestion mode: 'api' (direct Chronicle Ingestion API) or 'gcs' (export to GCS bucket for Chronicle Feed)
   delivery: "api"
 
-  # Google Cloud and Chronicle Tenant IDs
-  customer_id: "8cbac5ae-8267-4da7-b405-cdbc6fa3f1d5"
-  project_id: "gus-sdl"
+  # Google Cloud and Chronicle Tenant IDs (Required)
+  customer_id: "YOUR_CHRONICLE_CUSTOMER_ID"
+  project_id: "YOUR_GCP_PROJECT_ID"
   region: "us"
 
   # Path to GCP Service Account JSON key (optional if using Application Default Credentials / gcloud auth)

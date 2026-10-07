@@ -1,5 +1,4 @@
-"""Security and Vulnerability Defense Tests."""
-
+import base64
 import os
 import stat
 import tempfile
@@ -96,6 +95,76 @@ class TestSecurityDefenses(unittest.TestCase):
         finally:
             if os.path.exists(tmp.name):
                 os.remove(tmp.name)
+
+    def test_permissive_private_key_logs_warning_without_crash(self):
+        """Verify that overly permissive private key file triggers a warning and doesn't crash with NameError."""
+        import base64
+        import logging
+        from salesforce_secops.config import AppConfig
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
+            f.write("-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASC...\n-----END PRIVATE KEY-----")
+            key_path = f.name
+
+        try:
+            # Set to permissive permissions (0o644)
+            os.chmod(key_path, 0o644)
+
+            env_patch = {
+                "CUSTOMER_ID": "test-cust-id",
+                "PROJECT_ID": "test-proj-id",
+                "SALESFORCE_PRIVATE_KEY_PATH": key_path,
+            }
+            with unittest.mock.patch.dict(os.environ, env_patch):
+                with self.assertLogs("salesforce_secops.config", level="WARNING") as cm:
+                    cfg = AppConfig()
+                    self.assertTrue(any("SECURITY WARNING: Private key file" in msg for msg in cm.output))
+        finally:
+            if os.path.exists(key_path):
+                os.remove(key_path)
+
+    def test_missing_tenant_id_fails_fast(self):
+        """Verify AppConfig fails fast if CUSTOMER_ID or PROJECT_ID is omitted."""
+        from salesforce_secops.config import AppConfig
+
+        with unittest.mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(ValueError) as ctx:
+                AppConfig()
+            self.assertIn("Refusing to fall back to a default tenant", str(ctx.exception))
+
+    def test_jwt_claims_include_jti_and_nbf(self):
+        """Verify JWT assertion includes jti and nbf claims to prevent replay."""
+        import json
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.hazmat.primitives import serialization
+
+        # Generate a temporary test RSA private key
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem = key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode("utf-8")
+
+        auth = SalesforceJWTAuth(
+            client_id="test_client_id",
+            username="test@example.com",
+            private_key=pem,
+        )
+
+        jwt_token = auth._create_signed_jwt()
+        parts = jwt_token.split(".")
+        self.assertEqual(len(parts), 3)
+
+        # Decode payload
+        payload_b64 = parts[1]
+        padding = "=" * (4 - (len(payload_b64) % 4))
+        claims = json.loads(base64.urlsafe_b64decode(payload_b64 + padding).decode("utf-8"))
+
+        self.assertIn("jti", claims)
+        self.assertIn("nbf", claims)
+        self.assertEqual(claims["iss"], "test_client_id")
+        self.assertEqual(claims["sub"], "test@example.com")
 
 
 if __name__ == "__main__":

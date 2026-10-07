@@ -77,7 +77,7 @@ class SalesforceRecordNormalizer:
                 for sub_key, sub_val in val.items():
                     if sub_key == "attributes":
                         continue
-                    clean_nested_key = f"{key}_{sub_key}"
+                    clean_nested_key = _clean_field_name(f"{key}_{sub_key}")
                     normalized[clean_nested_key] = _mask_if_sensitive(clean_nested_key, sub_val)
             else:
                 clean_k = _clean_field_name(key)

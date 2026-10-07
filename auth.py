@@ -11,6 +11,7 @@ import json
 import logging
 import time
 import urllib.parse
+import uuid
 from typing import Any, Dict, Optional
 import requests
 from cryptography.hazmat.primitives import hashes
@@ -86,6 +87,8 @@ class SalesforceJWTAuth(SalesforceAuth):
             "sub": self.username,
             "aud": self.login_url,
             "exp": now + self.token_lifetime_seconds,
+            "nbf": now - 30,
+            "jti": str(uuid.uuid4()),
         }
 
         header_b64 = _base64url_encode(
@@ -128,14 +131,16 @@ class SalesforceJWTAuth(SalesforceAuth):
         )
 
         if not response.ok:
-            error_data = response.text
+            error_msg = f"HTTP {response.status_code}"
             try:
-                error_data = response.json()
+                err_json = response.json()
+                err_code = err_json.get("error", "")
+                err_desc = err_json.get("error_description", "")
+                if err_code or err_desc:
+                    error_msg = f"{err_code}: {err_desc}".strip(": ")
             except Exception:
                 pass
-            raise RuntimeError(
-                f"Salesforce JWT authentication failed (HTTP {response.status_code}): {error_data}"
-            )
+            raise RuntimeError(f"Salesforce JWT authentication failed ({error_msg})")
 
         data = response.json()
         self._access_token = data["access_token"]
@@ -151,7 +156,7 @@ class SalesforceJWTAuth(SalesforceAuth):
 
 
 class SalesforcePasswordAuth(SalesforceAuth):
-    """OAuth 2.0 Username-Password authentication flow."""
+    """OAuth 2.0 Username-Password authentication flow (Deprecated by Salesforce)."""
 
     def __init__(
         self,
@@ -169,6 +174,11 @@ class SalesforcePasswordAuth(SalesforceAuth):
         self.password = password
         self.security_token = security_token
 
+        logger.warning(
+            "SECURITY DEPRECATION WARNING: Salesforce OAuth Username-Password flow is deprecated and incompatible with MFA. "
+            "Please migrate to OAuth 2.0 JWT Bearer flow (auth_type: jwt)."
+        )
+
     def authenticate(self) -> Dict[str, Any]:
         """Request OAuth token using username, password and security token."""
         token_endpoint = f"{self.login_url}/services/oauth2/token"
@@ -183,14 +193,16 @@ class SalesforcePasswordAuth(SalesforceAuth):
         logger.info("Authenticating to Salesforce via Password flow (%s)...", self.login_url)
         response = requests.post(token_endpoint, data=payload, timeout=30)
         if not response.ok:
-            error_data = response.text
+            error_msg = f"HTTP {response.status_code}"
             try:
-                error_data = response.json()
+                err_json = response.json()
+                err_code = err_json.get("error", "")
+                err_desc = err_json.get("error_description", "")
+                if err_code or err_desc:
+                    error_msg = f"{err_code}: {err_desc}".strip(": ")
             except Exception:
                 pass
-            raise RuntimeError(
-                f"Salesforce Password authentication failed (HTTP {response.status_code}): {error_data}"
-            )
+            raise RuntimeError(f"Salesforce Password authentication failed ({error_msg})")
 
         data = response.json()
         self._access_token = data["access_token"]

@@ -1,10 +1,11 @@
-"""Configuration Loader for Salesforce to Google SecOps Integration."""
-
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 import yaml
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # Automatically load environment variables from .env if present
 load_dotenv()
@@ -64,14 +65,28 @@ class AppConfig:
 
         # Google SecOps parameters
         self.secops_delivery = os.getenv("SECOPS_DELIVERY", secops.get("delivery", "api"))
-        self.secops_customer_id = os.getenv(
-            "CUSTOMER_ID",
-            os.getenv("SECOPS_CUSTOMER_ID", secops.get("customer_id", "8cbac5ae-8267-4da7-b405-cdbc6fa3f1d5")),
+        self.secops_customer_id = (
+            os.getenv("CUSTOMER_ID")
+            or os.getenv("SECOPS_CUSTOMER_ID")
+            or secops.get("customer_id", "")
         )
-        self.secops_project_id = os.getenv(
-            "PROJECT_ID",
-            os.getenv("SECOPS_PROJECT_ID", secops.get("project_id", "gus-sdl")),
+        if not self.secops_customer_id:
+            raise ValueError(
+                "Configuration Error: 'customer_id' (or CUSTOMER_ID env var) is required. "
+                "Refusing to fall back to a default tenant to prevent cross-tenant data disclosure."
+            )
+
+        self.secops_project_id = (
+            os.getenv("PROJECT_ID")
+            or os.getenv("SECOPS_PROJECT_ID")
+            or secops.get("project_id", "")
         )
+        if not self.secops_project_id:
+            raise ValueError(
+                "Configuration Error: 'project_id' (or PROJECT_ID env var) is required. "
+                "Refusing to fall back to a default project."
+            )
+
         self.secops_region = os.getenv(
             "REGION",
             os.getenv("SECOPS_REGION", secops.get("region", "us")),

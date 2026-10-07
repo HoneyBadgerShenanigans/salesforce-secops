@@ -24,7 +24,7 @@ from .secops_client import (
     LocalFileIngestionClient,
     SecOpsIngestionClient,
 )
-from .sf_client import SalesforceClient
+from .sf_client import SalesforceClient, validate_timestamp_param
 
 logging.basicConfig(
     level=logging.INFO,
@@ -168,10 +168,20 @@ class SyncEngine:
         latest_id: Optional[str] = None
 
         for record in record_stream:
-            # Track high-water mark timestamp
+            # Track high-water mark timestamp (validate to prevent checkpoint poisoning)
             rec_ts = record.get(ts_field)
             if rec_ts:
-                latest_ts = str(rec_ts)
+                ts_str = str(rec_ts).strip()
+                try:
+                    validate_timestamp_param(ts_field, ts_str)
+                    latest_ts = ts_str
+                except ValueError as err:
+                    logger.warning(
+                        "Skipping malformed timestamp '%s' in record %s: %s",
+                        ts_str,
+                        record.get(id_field, "unknown"),
+                        err,
+                    )
             if id_field in record:
                 latest_id = str(record[id_field])
 

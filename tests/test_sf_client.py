@@ -77,7 +77,8 @@ class TestSalesforceClient(unittest.TestCase):
         # 3. Job results CSV
         results_resp = MagicMock()
         results_resp.ok = True
-        results_resp.text = "Id,Status,SourceIp\n0Ya1,Success,10.0.0.1\n0Ya2,Failure,10.0.0.2\n"
+        csv_content = [b"Id,Status,SourceIp\n", b"0Ya1,Success,10.0.0.1\n", b"0Ya2,Failure,10.0.0.2\n"]
+        results_resp.iter_lines.return_value = iter(csv_content)
         results_resp.headers = {"Sforce-Locator": "null"}
 
         mock_req.side_effect = [create_resp, status_resp, results_resp]

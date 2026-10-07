@@ -82,9 +82,9 @@ salesforce_secops/
 Ensure your GCP identity or Service Account has:
 - `roles/chronicle.admin` or `roles/chronicle.editor` / `Chronicle Ingestion API` access.
 - Target Tenant Details:
-  - **Project ID**: `gus-sdl`
-  - **Customer ID**: `8cbac5ae-8267-4da7-b405-cdbc6fa3f1d5`
-  - **Region**: `us`
+  - **Project ID**: `YOUR_GCP_PROJECT_ID`
+  - **Customer ID**: `YOUR_CHRONICLE_CUSTOMER_ID`
+  - **Region**: `us` (or `europe`, `asia-southeast1`)
   - **Log Type**: `SALESFORCE`
 
 ---
@@ -163,19 +163,19 @@ python3 -m salesforce_secops.sync backfill \
 2. **Automated Deploy via Script**:
    Run the deployment automation script:
    ```bash
-   ./deploy_cloud_run.sh
+   PROJECT_ID="YOUR_GCP_PROJECT_ID" CUSTOMER_ID="YOUR_CHRONICLE_CUSTOMER_ID" ./deploy_cloud_run.sh
    ```
    Or manually build and deploy:
    ```bash
    # Build container image
-   gcloud builds submit --tag us-central1-docker.pkg.dev/gus-sdl/secops-integrations/salesforce-secops:v1.0.0
+   gcloud builds submit --tag us-central1-docker.pkg.dev/YOUR_GCP_PROJECT_ID/secops-integrations/salesforce-secops:v1.0.0
 
    # Deploy Job
    gcloud run jobs deploy salesforce-secops-sync \
-     --image=us-central1-docker.pkg.dev/gus-sdl/secops-integrations/salesforce-secops:v1.0.0 \
+     --image=us-central1-docker.pkg.dev/YOUR_GCP_PROJECT_ID/secops-integrations/salesforce-secops:v1.0.0 \
      --region=us-central1 \
-     --project=gus-sdl \
-     --set-env-vars="CUSTOMER_ID=8cbac5ae-8267-4da7-b405-cdbc6fa3f1d5,PROJECT_ID=gus-sdl,REGION=us,CHECKPOINT_BACKEND=gcs,CHECKPOINT_PATH=gs://gus-sdl-secops-state/checkpoints/salesforce_state.json,SALESFORCE_AUTH_TYPE=jwt" \
+     --project=YOUR_GCP_PROJECT_ID \
+     --set-env-vars="CUSTOMER_ID=YOUR_CHRONICLE_CUSTOMER_ID,PROJECT_ID=YOUR_GCP_PROJECT_ID,REGION=us,CHECKPOINT_BACKEND=gcs,CHECKPOINT_PATH=gs://YOUR_GCP_PROJECT_ID-secops-state/checkpoints/salesforce_state.json,SALESFORCE_AUTH_TYPE=jwt" \
      --set-secrets="SALESFORCE_CLIENT_ID=salesforce-client-id:latest,SALESFORCE_USERNAME=salesforce-username:latest,SALESFORCE_PRIVATE_KEY=salesforce-private-key:latest" \
      --max-retries=1 \
      --task-timeout=600s
@@ -184,9 +184,9 @@ python3 -m salesforce_secops.sync backfill \
    gcloud scheduler jobs create http salesforce-secops-scheduler \
      --location=us-central1 \
      --schedule="*/10 * * * *" \
-     --uri="https://us-central1-run.googleapis.com/v2/projects/gus-sdl/locations/us-central1/jobs/salesforce-secops-sync:run" \
+     --uri="https://us-central1-run.googleapis.com/v2/projects/YOUR_GCP_PROJECT_ID/locations/us-central1/jobs/salesforce-secops-sync:run" \
      --http-method=POST \
-     --oauth-service-account-email=salesforce-secops-runner@gus-sdl.iam.gserviceaccount.com
+     --oauth-service-account-email=salesforce-secops-runner@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com
    ```
 
 ### Option B: High-Volume GCS Omniflow Pipeline

@@ -7,6 +7,7 @@ Supports:
 4. Robust token refresh and transient error retries
 """
 
+import codecs
 import csv
 import io
 import json
@@ -72,6 +73,7 @@ class SalesforceClient:
         path: str,
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
         stream: bool = False,
     ) -> requests.Response:
         """Execute HTTP request with automatic token refresh retry."""
@@ -83,12 +85,15 @@ class SalesforceClient:
         url = f"{base_url}/{path.lstrip('/')}"
 
         for attempt in range(3):
-            headers = self._headers()
+            req_headers = self._headers()
+            if headers:
+                req_headers.update(headers)
+
             try:
                 response = requests.request(
                     method=method,
                     url=url,
-                    headers=headers,
+                    headers=req_headers,
                     params=params,
                     json=json_data,
                     stream=stream,
@@ -114,8 +119,23 @@ class SalesforceClient:
                 continue
 
             if not response.ok:
+                err_detail = f"HTTP {response.status_code} {response.reason}"
+                try:
+                    err_json = response.json()
+                    if isinstance(err_json, list) and len(err_json) > 0:
+                        err_code = err_json[0].get("errorCode", "")
+                        err_msg = err_json[0].get("message", "")
+                        if err_code or err_msg:
+                            err_detail += f": {err_code} - {err_msg}".strip(" -")
+                    elif isinstance(err_json, dict):
+                        err_code = err_json.get("errorCode", err_json.get("error", ""))
+                        err_msg = err_json.get("message", err_json.get("error_description", ""))
+                        if err_code or err_msg:
+                            err_detail += f": {err_code} - {err_msg}".strip(" -")
+                except Exception:
+                    pass
                 raise RuntimeError(
-                    f"Salesforce API request failed [{response.status_code} {response.reason}] on {url}: {response.text}"
+                    f"Salesforce API request failed on {path} ({err_detail.strip(' -')})"
                 )
 
             return response
@@ -164,12 +184,10 @@ class SalesforceClient:
         path = f"services/data/{self.api_prefix}/{endpoint}"
         params = {"q": soql}
 
-        headers = self._headers()
-        # Sforce-Query-Options can request a specific batch size up to 2000
-        headers["Sforce-Query-Options"] = f"batchSize={batch_size}"
+        headers = {"Sforce-Query-Options": f"batchSize={batch_size}"}
 
         logger.info("Executing REST SOQL query: %s", soql)
-        response = self._request("GET", path, params=params)
+        response = self._request("GET", path, params=params, headers=headers)
         data = response.json()
 
         total_size = data.get("totalSize", 0)
@@ -182,7 +200,7 @@ class SalesforceClient:
         while next_url:
             logger.debug("Fetching next records page: %s", next_url)
             # nextRecordsUrl is formatted like /services/data/vXX.X/query/01g...
-            response = self._request("GET", next_url)
+            response = self._request("GET", next_url, headers=headers)
             data = response.json()
             for record in data.get("records", []):
                 yield record
@@ -253,8 +271,8 @@ class SalesforceClient:
                 params["locator"] = locator
 
             results_resp = self._request("GET", results_path, params=params, stream=True)
-            # Parse CSV stream
-            lines = io.StringIO(results_resp.text)
+            # Stream CSV line-by-line without buffering full payload in RAM
+            lines = codecs.iterdecode(results_resp.iter_lines(), "utf-8")
             reader = csv.DictReader(lines)
             for row in reader:
                 yield dict(row)
