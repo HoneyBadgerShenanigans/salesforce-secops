@@ -1,3 +1,5 @@
+"""Configuration Loader for Salesforce to Google SecOps Integration."""
+
 import logging
 import os
 from pathlib import Path
@@ -70,22 +72,11 @@ class AppConfig:
             or os.getenv("SECOPS_CUSTOMER_ID")
             or secops.get("customer_id", "")
         )
-        if not self.secops_customer_id:
-            raise ValueError(
-                "Configuration Error: 'customer_id' (or CUSTOMER_ID env var) is required. "
-                "Refusing to fall back to a default tenant to prevent cross-tenant data disclosure."
-            )
-
         self.secops_project_id = (
             os.getenv("PROJECT_ID")
             or os.getenv("SECOPS_PROJECT_ID")
             or secops.get("project_id", "")
         )
-        if not self.secops_project_id:
-            raise ValueError(
-                "Configuration Error: 'project_id' (or PROJECT_ID env var) is required. "
-                "Refusing to fall back to a default project."
-            )
 
         self.secops_region = os.getenv(
             "REGION",
@@ -120,3 +111,22 @@ class AppConfig:
         self.queries = load_yaml(str(default_queries_path)).get("queries", {})
         if "queries" in self.raw_config:
             self.queries.update(self.raw_config["queries"])
+
+    def validate_secops_config(self) -> None:
+        """Validate that mandatory Google SecOps tenant parameters are present for live delivery."""
+        if self.secops_delivery.lower() == "api":
+            if not self.secops_customer_id:
+                raise ValueError(
+                    "Configuration Error: 'customer_id' (or CUSTOMER_ID env var) is required for Chronicle API ingestion. "
+                    "Refusing to fall back to a default tenant to prevent cross-tenant data disclosure."
+                )
+            if not self.secops_project_id:
+                raise ValueError(
+                    "Configuration Error: 'project_id' (or PROJECT_ID env var) is required for Chronicle API ingestion. "
+                    "Refusing to fall back to a default project."
+                )
+        elif self.secops_delivery.lower() == "gcs":
+            if not self.gcs_bucket:
+                raise ValueError(
+                    "Configuration Error: 'gcs_bucket' (or SECOPS_GCS_BUCKET env var) is required for GCS delivery."
+                )

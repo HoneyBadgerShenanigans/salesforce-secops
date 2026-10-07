@@ -123,14 +123,26 @@ class TestSecurityDefenses(unittest.TestCase):
             if os.path.exists(key_path):
                 os.remove(key_path)
 
-    def test_missing_tenant_id_fails_fast(self):
-        """Verify AppConfig fails fast if CUSTOMER_ID or PROJECT_ID is omitted."""
+    def test_missing_tenant_id_fails_fast_on_live_ingest(self):
+        """Verify SecOps client initialization fails fast if CUSTOMER_ID or PROJECT_ID is omitted for live delivery."""
         from salesforce_secops.config import AppConfig
+        from salesforce_secops.sync import init_secops_client
 
         with unittest.mock.patch.dict(os.environ, {}, clear=True):
+            cfg = AppConfig()
+            # 1. Direct validation must fail fast
             with self.assertRaises(ValueError) as ctx:
-                AppConfig()
+                cfg.validate_secops_config()
             self.assertIn("Refusing to fall back to a default tenant", str(ctx.exception))
+
+            # 2. Live SecOps client initialization must fail fast
+            with self.assertRaises(ValueError) as ctx:
+                init_secops_client(cfg, dry_run=False)
+            self.assertIn("Refusing to fall back to a default tenant", str(ctx.exception))
+
+            # 3. Dry-run must succeed without tenant IDs (does not contact Chronicle)
+            client = init_secops_client(cfg, dry_run=True, output_file="/dev/null")
+            self.assertIsNotNone(client)
 
     def test_jwt_claims_include_jti_and_nbf(self):
         """Verify JWT assertion includes jti and nbf claims to prevent replay."""

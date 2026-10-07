@@ -67,9 +67,10 @@ def init_secops_client(config: AppConfig, dry_run: bool = False, output_file: Op
         out_path = output_file or "salesforce_secops_dry_run.jsonl"
         return LocalFileIngestionClient(output_path=out_path)
 
+    # Validate SecOps configuration only when initializing live ingestion
+    config.validate_secops_config()
+
     if config.secops_delivery.lower() == "gcs":
-        if not config.gcs_bucket:
-            raise ValueError("GCS delivery requires SECOPS_GCS_BUCKET.")
         return GCSIngestionClient(gcs_bucket=config.gcs_bucket, prefix=config.gcs_prefix)
 
     return ChronicleApiIngestionClient(

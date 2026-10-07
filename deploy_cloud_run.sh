@@ -72,11 +72,11 @@ fi
 
 # 6. Grant Permissions (Least Privilege)
 echo "Granting IAM permissions to ${SERVICE_ACCOUNT}..."
-# Storage permissions for checkpointing (scoped to bucket objectUser)
+# Storage permissions for checkpointing (strictly scoped to bucket objectUser)
+echo "Granting roles/storage.objectUser on ${CHECKPOINT_BUCKET}..."
 gcloud storage buckets add-iam-policy-binding "${CHECKPOINT_BUCKET}" \
     --member="serviceAccount:${SERVICE_ACCOUNT}" \
-    --role="roles/storage.objectUser" >/dev/null 2>&1 || \
-    gsutil iam ch "serviceAccount:${SERVICE_ACCOUNT}:objectAdmin" "${CHECKPOINT_BUCKET}"
+    --role="roles/storage.objectUser" >/dev/null
 
 # Secret Manager permissions: Scoped strictly to the 3 required secrets (NOT project-wide)
 echo "Granting per-secret Secret Accessor permissions..."

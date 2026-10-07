@@ -195,3 +195,12 @@ For organizations extracting dozens of gigabytes of historical data:
 2. Configure a native **Google SecOps Cloud Storage Feed (Omniflow V2)** targeting `gs://my-chronicle-staging-bucket/salesforce/SALESFORCE/` with Log Type `SALESFORCE`.
 3. The sync script compresses and streams NDJSON directly into GCS, and Chronicle's Omniflow STS pipeline ingests it with zero API quota constraints.
 
+---
+
+## 7. Security Considerations & Data Protection
+
+* **Credential Redaction Scope**: The normalizer automatically redacts values for fields matching common secret naming patterns (`*Password*`, `*Token*`, `*Secret*`, `*Key*`, `*Cert*`). It does **not** perform content-based DLP inspection on unstructured free-text fields (such as `Description__c`, `ChatterPost`, or `Comments`). Custom SOQL queries should select only fields necessary for security analysis.
+* **IAM Least Privilege**: Cloud Run execution Service Accounts should only be granted `roles/storage.objectUser` on the checkpoint bucket and `roles/secretmanager.secretAccessor` scoped strictly to the individual secret resources, not the entire GCP project.
+* **Tenant Isolation**: Direct Chronicle Ingestion requires both `CUSTOMER_ID` and `PROJECT_ID`. The application refuses to fall back to default tenant IDs to prevent cross-tenant data leakage.
+* **Checkpoint Tamper Resistance**: Checkpoints validate timestamp syntax (`validate_timestamp_param`) before advancing high-water marks, preventing checkpoint poisoning from malformed datetime data.
+

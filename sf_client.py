@@ -7,7 +7,6 @@ Supports:
 4. Robust token refresh and transient error retries
 """
 
-import codecs
 import csv
 import io
 import json
@@ -15,7 +14,7 @@ import logging
 import re
 import time
 import urllib.parse
-from typing import Any, Dict, Generator, Iterator, List, Optional
+from typing import Any, Dict, Generator, Optional
 import requests
 
 from .auth import SalesforceAuth
@@ -271,9 +270,10 @@ class SalesforceClient:
                 params["locator"] = locator
 
             results_resp = self._request("GET", results_path, params=params, stream=True)
-            # Stream CSV line-by-line without buffering full payload in RAM
-            lines = codecs.iterdecode(results_resp.iter_lines(), "utf-8")
-            reader = csv.DictReader(lines)
+            # Stream CSV via io.TextIOWrapper to preserve RFC-4180 quotes across embedded newlines
+            results_resp.raw.decode_content = True
+            stream = io.TextIOWrapper(results_resp.raw, encoding="utf-8", newline="")
+            reader = csv.DictReader(stream)
             for row in reader:
                 yield dict(row)
 
