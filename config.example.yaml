@@ -1,0 +1,70 @@
+# Salesforce to Google SecOps (Chronicle) Integration Configuration
+# This file can be used directly or overridden with environment variables.
+
+salesforce:
+  # Auth type: 'jwt' (recommended) or 'password'
+  auth_type: "jwt"
+
+  # Salesforce Login URL:
+  # - Production: https://login.salesforce.com
+  # - Sandbox: https://test.salesforce.com
+  # - Custom My Domain: https://acme.my.salesforce.com
+  login_url: "https://login.salesforce.com"
+
+  # Connected App / External Client App Consumer Key (Client ID)
+  client_id: "3MVG9IKcPoNiNVBIPjdw4z.pcfRjTFBp7xC8x9k4U8jZ0HlLQdPqX5bKjR8yNzQ9_YvY.8xD3F2W6nXb5YgNx"
+
+  # Dedicated integration username with read privileges
+  username: "secops-integration@yourcompany.com"
+
+  # Path to PKCS#8 private key (PEM format) matching the certificate uploaded to the Connected App
+  private_key_path: "./salesforce_private.key"
+
+  # API version
+  api_version: "v60.0"
+
+secops:
+  # Ingestion mode: 'api' (direct Chronicle Ingestion API) or 'gcs' (export to GCS bucket for Chronicle Feed)
+  delivery: "api"
+
+  # Google Cloud and Chronicle Tenant IDs
+  customer_id: "8cbac5ae-8267-4da7-b405-cdbc6fa3f1d5"
+  project_id: "gus-sdl"
+  region: "us"
+
+  # Path to GCP Service Account JSON key (optional if using Application Default Credentials / gcloud auth)
+  credentials_path: ""
+
+  # Target Chronicle Log Type (SALESFORCE uses Google SecOps built-in default parser)
+  log_type: "SALESFORCE"
+
+  # Required only if delivery is set to 'gcs'
+  gcs_bucket: "gs://my-chronicle-salesforce-ingest-bucket"
+  gcs_prefix: "salesforce"
+
+checkpoint:
+  # Checkpoint backend: 'file' (local JSON) or 'gcs' (gs://bucket/path/to/checkpoint.json)
+  backend: "file"
+  path: ".salesforce_checkpoints.json"
+
+execution:
+  # Number of records to batch per Ingestion API request (Chronicle limit is 1000 logs / ~1MB)
+  batch_size: 1000
+
+  # Default query engine: false = REST API (low latency), true = Bulk API 2.0 (high volume)
+  use_bulk_api: false
+
+# Custom SOQL queries (extends or overrides salesforce_secops/queries.yaml)
+queries:
+  # Example custom object or standard object query
+  custom_security_events:
+    description: "Custom security incidents or privileged changes from Salesforce"
+    object: "SecurityIncident__c"
+    timestamp_field: "CreatedDate"
+    id_field: "Id"
+    default_lookback_days: 7
+    soql: >-
+      SELECT Id, Name, Severity__c, Description__c, User__c, CreatedDate
+      FROM SecurityIncident__c
+      WHERE CreatedDate > :checkpoint
+      ORDER BY CreatedDate ASC

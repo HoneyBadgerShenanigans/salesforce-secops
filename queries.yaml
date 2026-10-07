@@ -1,0 +1,72 @@
+# Pre-configured Salesforce Security SOQL Queries for Google SecOps (Chronicle)
+# Placeholders available:
+#   :checkpoint - Timestamp of last extracted record (e.g., 2026-01-01T00:00:00Z)
+#   :start_time - Backfill start timestamp
+#   :end_time   - Backfill end timestamp
+
+queries:
+  login_history:
+    description: "Salesforce user login attempts, authentication outcomes, source IPs, and client platforms"
+    object: "LoginHistory"
+    timestamp_field: "LoginTime"
+    id_field: "Id"
+    # Fallback start if no checkpoint exists
+    default_lookback_days: 7
+    soql: >-
+      SELECT Id, UserId, LoginTime, SourceIp, LoginType, Status,
+             Browser, Platform, Application, AuthMethodReference,
+             TlsProtocol, CipherSuite, CountryIso
+      FROM LoginHistory
+      WHERE LoginTime > :checkpoint
+      ORDER BY LoginTime ASC
+
+  setup_audit_trail:
+    description: "Salesforce administrative changes, security setting modifications, and user privilege delegations"
+    object: "SetupAuditTrail"
+    timestamp_field: "CreatedDate"
+    id_field: "Id"
+    default_lookback_days: 14
+    soql: >-
+      SELECT Id, Action, Section, CreatedDate, CreatedById,
+             Display, DelegateUser
+      FROM SetupAuditTrail
+      WHERE CreatedDate > :checkpoint
+      ORDER BY CreatedDate ASC
+
+  auth_session:
+    description: "Active and historical user session monitoring, session security levels, and session types"
+    object: "AuthSession"
+    timestamp_field: "CreatedDate"
+    id_field: "Id"
+    default_lookback_days: 7
+    soql: >-
+      SELECT Id, UsersId, CreatedDate, LastModifiedDate,
+             SessionType, SourceIp, LoginType, SecurityLevel, UserType
+      FROM AuthSession
+      WHERE CreatedDate > :checkpoint
+      ORDER BY CreatedDate ASC
+
+  login_geo:
+    description: "Geolocation data, country, city, postal code, and ISP information for logins"
+    object: "LoginGeo"
+    timestamp_field: "CreatedDate"
+    id_field: "Id"
+    default_lookback_days: 7
+    soql: >-
+      SELECT Id, CreatedDate, City, Country, CountryIso,
+             PostalCode, Subdivision, Latitude, Longitude, Isp
+      FROM LoginGeo
+      WHERE CreatedDate > :checkpoint
+      ORDER BY CreatedDate ASC
+
+  permission_set_assignment:
+    description: "User privilege assignments and elevated permission changes"
+    object: "PermissionSetAssignment"
+    timestamp_field: "SystemModstamp"
+    id_field: "Id"
+    default_lookback_days: 14
+    soql: >-
+      SELECT Id, PermissionSetId, AssigneeId, SystemModstamp
+      FROM PermissionSetAssignment
+      WHERE SystemModstamp > :checkpoint
+      ORDER BY SystemModstamp ASC

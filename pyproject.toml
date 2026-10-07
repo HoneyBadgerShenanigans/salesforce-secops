@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "salesforce-secops"
+version = "1.0.0"
+description = "Salesforce arbitrary SOQL extraction and ingestion into Google SecOps (Chronicle)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Security Operations Engineering"}
+]
+keywords = ["salesforce", "google-secops", "chronicle", "siem", "soql", "security"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Information Technology",
+    "Topic :: Security",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "requests>=2.31.0",
+    "cryptography>=42.0.0",
+    "google-auth>=2.27.0",
+    "google-cloud-storage>=2.14.0",
+    "PyYAML>=6.0.1",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+salesforce-secops-sync = "salesforce_secops.sync:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["salesforce_secops*"]
