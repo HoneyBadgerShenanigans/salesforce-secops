@@ -139,13 +139,59 @@ python3 -m salesforce_secops.sync backfill \
 
 ---
 
+---
+
 ## 6. Deployment Patterns
 
-### Option A: Cloud Run Job / Kubernetes CronJob
-Deploy as a container running `python3 -m salesforce_secops.sync poll` every 5 or 15 minutes. Set `CHECKPOINT_BACKEND=gcs` and `CHECKPOINT_PATH=gs://my-bucket/checkpoints/sf_checkpoint.json` for resilient serverless checkpoint storage.
+### Option A: Cloud Run Jobs + Cloud Scheduler (Recommended Serverless Pattern)
+
+**Why Cloud Run Jobs?**
+* **Zero Idle Cost**: Unlike a standard Cloud Run Service that waits for HTTP requests, a **Job** executes on a schedule, pulls Salesforce data, pushes to SecOps, updates the GCS checkpoint, and immediately scales to zero.
+* **Serverless Checkpointing**: State is persisted across runs in Google Cloud Storage via `CHECKPOINT_BACKEND=gcs`.
+* **Zero Static GCP Keys**: Leverages Google Cloud Application Default Credentials (ADC) via Cloud Run's attached Service Account.
+* **Secure Secrets**: Salesforce private keys and client IDs are loaded directly from Google Cloud Secret Manager.
+
+#### Step-by-Step Cloud Run Deployment:
+
+1. **Store Secrets in Secret Manager**:
+   ```bash
+   gcloud secrets create salesforce-client-id --data-file=- <<< "YOUR_CLIENT_ID"
+   gcloud secrets create salesforce-username --data-file=- <<< "secops@yourcompany.com"
+   gcloud secrets create salesforce-private-key --data-file=./salesforce_private.key
+   ```
+
+2. **Automated Deploy via Script**:
+   Run the deployment automation script:
+   ```bash
+   ./deploy_cloud_run.sh
+   ```
+   Or manually build and deploy:
+   ```bash
+   # Build container image
+   gcloud builds submit --tag us-central1-docker.pkg.dev/gus-sdl/secops-integrations/salesforce-secops:v1.0.0
+
+   # Deploy Job
+   gcloud run jobs deploy salesforce-secops-sync \
+     --image=us-central1-docker.pkg.dev/gus-sdl/secops-integrations/salesforce-secops:v1.0.0 \
+     --region=us-central1 \
+     --project=gus-sdl \
+     --set-env-vars="CUSTOMER_ID=8cbac5ae-8267-4da7-b405-cdbc6fa3f1d5,PROJECT_ID=gus-sdl,REGION=us,CHECKPOINT_BACKEND=gcs,CHECKPOINT_PATH=gs://gus-sdl-secops-state/checkpoints/salesforce_state.json,SALESFORCE_AUTH_TYPE=jwt" \
+     --set-secrets="SALESFORCE_CLIENT_ID=salesforce-client-id:latest,SALESFORCE_USERNAME=salesforce-username:latest,SALESFORCE_PRIVATE_KEY=salesforce-private-key:latest" \
+     --max-retries=1 \
+     --task-timeout=600s
+
+   # Schedule to run every 10 minutes
+   gcloud scheduler jobs create http salesforce-secops-scheduler \
+     --location=us-central1 \
+     --schedule="*/10 * * * *" \
+     --uri="https://us-central1-run.googleapis.com/v2/projects/gus-sdl/locations/us-central1/jobs/salesforce-secops-sync:run" \
+     --http-method=POST \
+     --oauth-service-account-email=salesforce-secops-runner@gus-sdl.iam.gserviceaccount.com
+   ```
 
 ### Option B: High-Volume GCS Omniflow Pipeline
 For organizations extracting dozens of gigabytes of historical data:
 1. Set `SECOPS_DELIVERY=gcs` and `SECOPS_GCS_BUCKET=gs://my-chronicle-staging-bucket`.
 2. Configure a native **Google SecOps Cloud Storage Feed (Omniflow V2)** targeting `gs://my-chronicle-staging-bucket/salesforce/SALESFORCE/` with Log Type `SALESFORCE`.
 3. The sync script compresses and streams NDJSON directly into GCS, and Chronicle's Omniflow STS pipeline ingests it with zero API quota constraints.
+
