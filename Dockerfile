@@ -1,5 +1,5 @@
-# Build stage / Production image
-FROM python:3.12-slim AS runtime
+# Build stage / Production image pinned to immutable multi-arch digest
+FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f AS runtime
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -14,10 +14,10 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
+# Copy lockfile and install dependencies hermetically with hash verification
+COPY requirements.txt requirements.lock .
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install --no-cache-dir --require-hashes -r requirements.lock
 
 # Copy application source code into package directory
 COPY . /app/salesforce_secops

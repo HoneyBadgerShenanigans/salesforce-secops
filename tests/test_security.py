@@ -47,7 +47,7 @@ class TestSecurityDefenses(unittest.TestCase):
                 self.assertIn(val, res)
 
     def test_sensitive_credential_redaction(self):
-        """Ensure sensitive credentials and auth secrets are automatically masked."""
+        """Ensure sensitive credentials and auth secrets are automatically masked across all field patterns."""
         normalizer = SalesforceRecordNormalizer(default_object="CustomUserAudit")
         raw_record = {
             "Id": "005123456789012",
@@ -57,17 +57,42 @@ class TestSecurityDefenses(unittest.TestCase):
             "Security_Token": "tok_xyz_secret",
             "Api_Key": "key_abcdef123456",
             "AccessToken": "00D50000000IzUN!AQcAQ...",
+            "RefreshToken__c": "1//04testrefreshtoken...",
+            "BearerToken": "bearer_abc123",
+            "AppSecret__c": "app_secret_value",
+            "Secret__c": "raw_secret",
+            "EncryptionKey__c": "enc_key_999",
+            "SigningKey": "sign_key_888",
+            "ClientCert__c": "-----BEGIN CERTIFICATE-----...",
+            "Certificate": "-----BEGIN CERTIFICATE-----...",
+            "Signature__c": "sig_hex_bytes",
+            "Credential_Payload": "cred_blob",
             "CreatedDate": "2026-10-07T12:00:00.000Z",
+            "Status": "Active",
         }
 
         normalized = normalizer.normalize(raw_record)
 
+        # Sensitive secrets must all be masked
         self.assertEqual(normalized["Password"], "[REDACTED_SECRET]")
         self.assertEqual(normalized["User_ClientSecret"], "[REDACTED_SECRET]")
         self.assertEqual(normalized["Security_Token"], "[REDACTED_SECRET]")
         self.assertEqual(normalized["Api_Key"], "[REDACTED_SECRET]")
         self.assertEqual(normalized["AccessToken"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["RefreshToken__c"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["BearerToken"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["AppSecret__c"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["Secret__c"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["EncryptionKey__c"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["SigningKey"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["ClientCert__c"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["Certificate"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["Signature__c"], "[REDACTED_SECRET]")
+        self.assertEqual(normalized["Credential_Payload"], "[REDACTED_SECRET]")
+
+        # Non-secret fields must be preserved
         self.assertEqual(normalized["Username"], "admin@example.com")
+        self.assertEqual(normalized["Status"], "Active")
 
     def test_insecure_http_url_rejection(self):
         """Verify plain HTTP is rejected for Salesforce login endpoints."""

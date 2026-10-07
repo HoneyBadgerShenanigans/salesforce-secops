@@ -56,7 +56,11 @@ salesforce_secops/
 ├── queries.yaml             # Pre-configured SOQL security queries
 ├── sync.py                  # CLI orchestration runner (poll, backfill, dry-run)
 ├── config.example.yaml      # Configuration template
-└── tests/                   # Full unit test suite (10/10 tests passing)
+├── requirements.txt         # Direct dependency specifications
+├── requirements.lock        # Sha256 hash-pinned hermetic lockfile
+├── Dockerfile               # Multi-arch digest-pinned container build
+├── deploy_cloud_run.sh      # Automated least-privilege Cloud Run deployment
+└── tests/                   # Full unit and security test suite (19/19 tests passing)
 ```
 
 ---

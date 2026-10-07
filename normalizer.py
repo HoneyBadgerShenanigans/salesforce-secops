@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Patterns matching sensitive authentication secrets or credentials
 SENSITIVE_FIELD_PATTERNS = re.compile(
-    r"(?:password|client_?secret|security_?token|private_?key|access_?token|api_?key|auth_?token|session_?token)",
+    r"(?:pass(?:word|wd)|secret|token|key|credential|cert(?:ificate)?|signature)",
     re.IGNORECASE,
 )
 
